@@ -11,7 +11,7 @@ import android.graphics.drawable.GradientDrawable
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
-    private val gameUrl = "http://www.plaync100.net/web.php"
+    private val gameUrl = "https://bleach.gogames.me/"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,9 +27,15 @@ class MainActivity : Activity() {
         web.settings.mediaPlaybackRequiresUserGesture = false
         web.settings.allowFileAccess = true
         web.settings.allowContentAccess = true
-        web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        web.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0"
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) { injectRuffle() }
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (request.isForMainFrame) Toast.makeText(this@MainActivity, "Could not load GoGames: " + error.description, Toast.LENGTH_LONG).show()
+            }
         }
         web.webChromeClient = WebChromeClient()
         root.addView(web, FrameLayout.LayoutParams(-1,-1))
@@ -43,7 +49,7 @@ class MainActivity : Activity() {
             (function(){
               if(window.__bleachRuffleInjected)return; window.__bleachRuffleInjected=true;
               var s=document.createElement('script');
-              s.src='https://unpkg.com/@ruffle-rs/ruffle';
+              s.src='https://unpkg.com/@ruffle-rs/ruffle@latest';
               s.onload=function(){try{if(window.RufflePlayer)window.RufflePlayer.config={letterbox:'on',autoplay:'on',unmuteOverlay:'hidden',warnOnUnsupportedContent:false};}catch(e){}};
               document.head.appendChild(s);
             })();
