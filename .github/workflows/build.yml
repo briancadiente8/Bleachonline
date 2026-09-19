@@ -25,7 +25,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.5'
+          gradle-version: '8.13'
 
       - name: Build APK
         run: gradle assembleDebug --no-daemon
