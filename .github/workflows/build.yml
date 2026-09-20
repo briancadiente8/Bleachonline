@@ -124,7 +124,9 @@ jobs:
           link-to-sdk: true
 
       - name: Install Rust target and cargo-ndk
+        working-directory: ruffle
         run: |
+          rustup show
           rustup target add aarch64-linux-android
           cargo install cargo-ndk@4.1.2 --locked
 
