@@ -77,6 +77,15 @@ jobs:
                         else window.__bleachRuffleBridge = true;
                         window.__bleachRuffleBridge = true;
 
+                        // Pretend the legacy Flash plugin exists so GoGames does not stop at its Flash check.
+                        try {
+                          const flashPlugin = {name:"Shockwave Flash", description:"Shockwave Flash 32.0 r0", filename:"pepflashplayer.dll", version:"32.0.0.465"};
+                          const flashMime = {type:"application/x-shockwave-flash", suffixes:"swf", description:"Shockwave Flash"};
+                          Object.defineProperty(navigator, "plugins", {get:function(){ return [flashPlugin]; }, configurable:true});
+                          Object.defineProperty(navigator, "mimeTypes", {get:function(){ return [flashMime]; }, configurable:true});
+                          window.ActiveXObject = window.ActiveXObject || function(){ return {GetVariable:function(){return "$version";}}; };
+                        } catch(e) {}
+                        
                         window.RufflePlayer = window.RufflePlayer || {};
                         window.RufflePlayer.config = {
                           autoplay: "on",
