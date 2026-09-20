@@ -14,21 +14,18 @@ jobs:
           repository: ruffle-rs/ruffle-android
           path: ruffle
 
-      - name: Replace launcher with Bleach Online browser bridge
+      - name: Replace launcher with Ruffle Flash polyfill browser
         working-directory: ruffle
         run: |
           cat > app/src/main/java/rs/ruffle/MainActivity.kt <<'EOF'
           package rs.ruffle
 
           import android.annotation.SuppressLint
-          import android.content.Intent
-          import android.net.Uri
           import android.os.Bundle
           import android.view.Window
           import android.view.WindowManager
           import android.webkit.CookieManager
-          import android.webkit.DownloadListener
-          import android.webkit.WebResourceRequest
+          import android.webkit.WebChromeClient
           import android.webkit.WebView
           import android.webkit.WebViewClient
           import androidx.activity.ComponentActivity
@@ -41,10 +38,7 @@ jobs:
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   requestWindowFeature(Window.FEATURE_NO_TITLE)
-                  window.setFlags(
-                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                      WindowManager.LayoutParams.FLAG_FULLSCREEN
-                  )
+                  window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
                   web = WebView(this)
                   web.settings.javaScriptEnabled = true
@@ -54,42 +48,65 @@ jobs:
                   web.settings.allowContentAccess = true
                   web.settings.mediaPlaybackRequiresUserGesture = false
                   web.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                  web.settings.userAgentString =
-                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0"
+                  web.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0"
 
                   CookieManager.getInstance().setAcceptCookie(true)
                   CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
+                  web.webChromeClient = WebChromeClient()
 
                   web.webViewClient = object : WebViewClient() {
-                      override fun shouldOverrideUrlLoading(
-                          view: WebView,
-                          request: WebResourceRequest
-                      ): Boolean = handlePossibleSwf(request.url.toString())
-
-                      override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean =
-                          handlePossibleSwf(url)
+                      override fun onPageFinished(view: WebView, url: String) {
+                          injectRuffle()
+                      }
                   }
-
-                  web.setDownloadListener(DownloadListener { url, _, _, _, _ ->
-                      handlePossibleSwf(url)
-                  })
 
                   setContentView(web)
                   web.loadUrl(homeUrl)
               }
 
-              private fun handlePossibleSwf(url: String): Boolean {
-                  val lower = url.lowercase()
-                  if (lower.substringBefore('?').substringBefore('#').endsWith(".swf") ||
-                      lower.contains(".swf?") || lower.contains(".swf#")) {
-                      startActivity(
-                          Intent(this, PlayerActivity::class.java).apply {
-                              data = Uri.parse(url)
+              private fun injectRuffle() {
+                  val js = """
+                      (function() {
+                        if (window.__bleachRuffleBridge) return;
+                        window.__bleachRuffleBridge = true;
+
+                        window.RufflePlayer = window.RufflePlayer || {};
+                        window.RufflePlayer.config = {
+                          autoplay: "on",
+                          unmuteOverlay: "hidden",
+                          warnOnUnsupportedContent: false,
+                          allowNetworking: "all",
+                          upgradeToHttps: false,
+                          compatibilityRules: true,
+                          polyfills: true,
+                          favorFlash: false
+                        };
+
+                        function startRuffle() {
+                          try {
+                            if (window.RufflePlayer && window.RufflePlayer.newest) {
+                              var api = window.RufflePlayer.newest();
+                              if (api.polyfill) api.polyfill();
+                            }
+                          } catch (e) {
+                            console.log("Ruffle polyfill error", e);
                           }
-                      )
-                      return true
-                  }
-                  return false
+                        }
+
+                        var s = document.createElement("script");
+                        s.src = "https://unpkg.com/@ruffle-rs/ruffle@latest";
+                        s.onload = function() {
+                          startRuffle();
+                          var observer = new MutationObserver(function() { startRuffle(); });
+                          if (document.documentElement) {
+                            observer.observe(document.documentElement, {childList:true, subtree:true});
+                          }
+                        };
+                        s.onerror = function() { document.title = "Ruffle CDN failed"; };
+                        (document.head || document.documentElement).appendChild(s);
+                      })();
+                  """.trimIndent()
+                  web.evaluateJavascript(js, null)
               }
 
               override fun onBackPressed() {
@@ -97,7 +114,6 @@ jobs:
               }
           }
           EOF
-
           sed -i 's#<string name="app_name">Ruffle</string>#<string name="app_name">Bleach Online</string>#' app/src/main/res/values/strings.xml
 
       - name: Setup Java 17
