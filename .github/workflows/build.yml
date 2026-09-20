@@ -83,7 +83,7 @@ jobs:
                           const flashMime = {type:"application/x-shockwave-flash", suffixes:"swf", description:"Shockwave Flash"};
                           Object.defineProperty(navigator, "plugins", {get:function(){ return [flashPlugin]; }, configurable:true});
                           Object.defineProperty(navigator, "mimeTypes", {get:function(){ return [flashMime]; }, configurable:true});
-                          window.ActiveXObject = window.ActiveXObject || function(){ return {GetVariable:function(){return "$version";}}; };
+                          window.ActiveXObject = window.ActiveXObject || function(){ return {GetVariable:function(){return "$" + "version";}}; };
                         } catch(e) {}
                         
                         window.RufflePlayer = window.RufflePlayer || {};
