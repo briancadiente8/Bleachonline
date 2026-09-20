@@ -106,12 +106,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK tools
+        uses: android-actions/setup-android@v4
         with:
-          packages: |
-            platform-tools
-            build-tools;36.0.0
+          packages: ''
+
+      - name: Install required Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install NDK
         uses: nttld/setup-ndk@v1
