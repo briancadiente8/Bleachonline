@@ -24,7 +24,6 @@ jobs:
           import android.content.Intent
           import android.net.Uri
           import android.os.Bundle
-          import android.view.View
           import android.view.Window
           import android.view.WindowManager
           import android.webkit.CookieManager
@@ -65,13 +64,10 @@ jobs:
                       override fun shouldOverrideUrlLoading(
                           view: WebView,
                           request: WebResourceRequest
-                      ): Boolean {
-                          return handlePossibleSwf(request.url.toString())
-                      }
+                      ): Boolean = handlePossibleSwf(request.url.toString())
 
-                      override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                          return handlePossibleSwf(url)
-                      }
+                      override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean =
+                          handlePossibleSwf(url)
                   }
 
                   web.setDownloadListener(DownloadListener { url, _, _, _, _ ->
@@ -85,8 +81,7 @@ jobs:
               private fun handlePossibleSwf(url: String): Boolean {
                   val lower = url.lowercase()
                   if (lower.substringBefore('?').substringBefore('#').endsWith(".swf") ||
-                      lower.contains(".swf?") ||
-                      lower.contains(".swf#")) {
+                      lower.contains(".swf?") || lower.contains(".swf#")) {
                       startActivity(
                           Intent(this, PlayerActivity::class.java).apply {
                               data = Uri.parse(url)
@@ -114,7 +109,7 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools'
+          packages: 'platform-tools;build-tools;36.0.0'
 
       - name: Install NDK
         uses: nttld/setup-ndk@v1
@@ -150,14 +145,19 @@ jobs:
         with:
           cache-disabled: true
 
-      - name: Build arm64 APK
+      - name: Build signed debug APK
         working-directory: ruffle
-        env:
-          ABI_FILTERS: arm64-v8a
-        run: ./gradlew assembleRelease -PABI_FILTERS=arm64-v8a --no-daemon
+        run: ./gradlew assembleDebug -PABI_FILTERS=arm64-v8a --no-daemon
 
-      - name: Upload APK
+      - name: Verify APK signature
+        working-directory: ruffle
+        run: |
+          APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          echo "APK: $APK"
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose "$APK"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Bleach-Online-Native-Ruffle-arm64
-          path: ruffle/app/build/outputs/apk/release/*.apk
+          name: Bleach-Online-Native-Ruffle-arm64-signed
+          path: ruffle/app/build/outputs/apk/debug/*.apk
