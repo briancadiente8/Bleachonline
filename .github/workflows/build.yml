@@ -55,8 +55,12 @@ jobs:
                   web.webChromeClient = WebChromeClient()
 
                   web.webViewClient = object : WebViewClient() {
+                      override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                          injectRuffle(true)
+                      }
+
                       override fun onPageFinished(view: WebView, url: String) {
-                          injectRuffle()
+                          injectRuffle(false)
                       }
                   }
 
@@ -64,10 +68,13 @@ jobs:
                   web.loadUrl(homeUrl)
               }
 
-              private fun injectRuffle() {
+              private fun injectRuffle(early: Boolean = false) {
                   val js = """
                       (function() {
-                        if (window.__bleachRuffleBridge) return;
+                        if (early && window.__bleachRuffleEarly) return;
+                        if (!early && window.__bleachRuffleBridge) return;
+                        if (early) window.__bleachRuffleEarly = true;
+                        else window.__bleachRuffleBridge = true;
                         window.__bleachRuffleBridge = true;
 
                         window.RufflePlayer = window.RufflePlayer || {};
@@ -86,6 +93,7 @@ jobs:
                           try {
                             if (window.RufflePlayer && window.RufflePlayer.newest) {
                               var api = window.RufflePlayer.newest();
+                              if (api.pluginPolyfill) api.pluginPolyfill();
                               if (api.polyfill) api.polyfill();
                             }
                           } catch (e) {
@@ -95,6 +103,7 @@ jobs:
 
                         var s = document.createElement("script");
                         s.src = "https://unpkg.com/@ruffle-rs/ruffle@latest";
+                        s.setAttribute("data-ruffle-early", early ? "1" : "0");
                         s.onload = function() {
                           startRuffle();
                           var observer = new MutationObserver(function() { startRuffle(); });
