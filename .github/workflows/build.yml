@@ -129,12 +129,69 @@ jobs:
                         else window.__bleachRuffleBridge = true;
                         window.__bleachRuffleBridge = true;
 
-                        // Pretend the legacy Flash plugin exists so GoGames does not stop at its Flash check.
+                        // Pretend the legacy Flash plugin exists in the exact shape used by old
+                        // GoGames/Baidu-style Flash detection. A plain JS array is not enough because
+                        // those scripts access navigator.plugins["Shockwave Flash"] by name.
                         try {
-                          const flashPlugin = {name:"Shockwave Flash", description:"Shockwave Flash 32.0 r0", filename:"pepflashplayer.dll", version:"32.0.0.465"};
-                          const flashMime = {type:"application/x-shockwave-flash", suffixes:"swf", description:"Shockwave Flash"};
-                          Object.defineProperty(navigator, "plugins", {get:function(){ return [flashPlugin]; }, configurable:true});
-                          Object.defineProperty(navigator, "mimeTypes", {get:function(){ return [flashMime]; }, configurable:true});
+                          const flashPlugin = {
+                            name:"Shockwave Flash",
+                            description:"Shockwave Flash 32.0 r0",
+                            filename:"pepflashplayer.dll",
+                            version:"32.0.0.465",
+                            length:1,
+                            0:{type:"application/x-shockwave-flash",suffixes:"swf",description:"Shockwave Flash",enabledPlugin:null}
+                          };
+                          const flashMime = {
+                            type:"application/x-shockwave-flash",
+                            suffixes:"swf",
+                            description:"Shockwave Flash",
+                            enabledPlugin:flashPlugin
+                          };
+                          flashPlugin[0].enabledPlugin = flashPlugin;
+
+                          // First try replacing Navigator properties.
+                          const fakePlugins = [flashPlugin];
+                          fakePlugins["Shockwave Flash"] = flashPlugin;
+                          fakePlugins["Shockwave Flash 2.0"] = flashPlugin;
+                          fakePlugins.item = function(i){ return i === 0 ? flashPlugin : null; };
+                          fakePlugins.namedItem = function(n){ return n === "Shockwave Flash" || n === "Shockwave Flash 2.0" ? flashPlugin : null; };
+                          fakePlugins.refresh = function(){};
+                          const fakeMimeTypes = [flashMime];
+                          fakeMimeTypes["application/x-shockwave-flash"] = flashMime;
+                          fakeMimeTypes.item = function(i){ return i === 0 ? flashMime : null; };
+                          fakeMimeTypes.namedItem = function(n){ return n === "application/x-shockwave-flash" ? flashMime : null; };
+
+                          Object.defineProperty(navigator, "plugins", {get:function(){ return fakePlugins; }, configurable:true});
+                          Object.defineProperty(navigator, "mimeTypes", {get:function(){ return fakeMimeTypes; }, configurable:true});
+
+                          // Also patch the prototype named lookups in case WebView refuses to
+                          // replace the Navigator properties themselves.
+                          if (window.PluginArray && PluginArray.prototype) {
+                            try {
+                              Object.defineProperty(PluginArray.prototype, "Shockwave Flash", {get:function(){ return flashPlugin; }, configurable:true});
+                              Object.defineProperty(PluginArray.prototype, "Shockwave Flash 2.0", {get:function(){ return flashPlugin; }, configurable:true});
+                            } catch(e) {}
+                            try {
+                              const oldNamedItem = PluginArray.prototype.namedItem;
+                              PluginArray.prototype.namedItem = function(n) {
+                                if (n === "Shockwave Flash" || n === "Shockwave Flash 2.0") return flashPlugin;
+                                return oldNamedItem ? oldNamedItem.call(this,n) : null;
+                              };
+                            } catch(e) {}
+                          }
+                          if (window.MimeTypeArray && MimeTypeArray.prototype) {
+                            try {
+                              Object.defineProperty(MimeTypeArray.prototype, "application/x-shockwave-flash", {get:function(){ return flashMime; }, configurable:true});
+                            } catch(e) {}
+                            try {
+                              const oldMimeNamedItem = MimeTypeArray.prototype.namedItem;
+                              MimeTypeArray.prototype.namedItem = function(n) {
+                                if (n === "application/x-shockwave-flash") return flashMime;
+                                return oldMimeNamedItem ? oldMimeNamedItem.call(this,n) : null;
+                              };
+                            } catch(e) {}
+                          }
+
                           window.ActiveXObject = window.ActiveXObject || function(){ return {GetVariable:function(){return "$" + "version";}}; };
                         } catch(e) {}
                         
