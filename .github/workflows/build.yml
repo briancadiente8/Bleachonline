@@ -62,6 +62,25 @@ jobs:
                       override fun onPageFinished(view: WebView, url: String) {
                           injectRuffle(false)
                       }
+
+                      override fun shouldInterceptRequest(
+                          view: WebView,
+                          request: android.webkit.WebResourceRequest
+                      ): android.webkit.WebResourceResponse? {
+                          val url = request.url.toString()
+                          if (url.contains(".swf", ignoreCase = true) &&
+                              (url.startsWith("http://") || url.startsWith("https://"))) {
+                              runOnUiThread {
+                                  if (!isFinishing) {
+                                      val intent = Intent(this@MainActivity, PlayerActivity::class.java)
+                                      intent.data = Uri.parse(url)
+                                      startActivity(intent)
+                                      web.stopLoading()
+                                  }
+                              }
+                          }
+                          return null
+                      }
                   }
 
                   setContentView(web)
@@ -105,9 +124,9 @@ jobs:
                             if (api.pluginPolyfill) api.pluginPolyfill();
                             if (api.polyfill) api.polyfill();
 
-                            // Bypass the site's old "Adobe Flash required" gate.
-                            // Find the actual SWF URL from object/embed elements or the page HTML,
-                            // then create a Ruffle player directly.
+                            // Do not try to satisfy the site's Adobe Flash check. Native Ruffle will
+                            // open the actual SWF when WebView requests it.
+                            // Keep the page alive so login/session cookies are preserved.
                             if (window.__bleachDirectSwfStarted) return;
                             var candidates = [];
                             document.querySelectorAll("object,embed").forEach(function(el) {
