@@ -27,6 +27,7 @@ jobs:
           import android.view.Window
           import android.view.WindowManager
           import android.webkit.CookieManager
+          import android.webkit.JavascriptInterface
           import android.webkit.WebChromeClient
           import android.webkit.WebView
           import android.webkit.WebViewClient
@@ -35,6 +36,7 @@ jobs:
           class MainActivity : ComponentActivity() {
               private lateinit var web: WebView
               private val homeUrl = "https://bleach.gogames.me/"
+              private var lastReportedUrl = ""
 
               @SuppressLint("SetJavaScriptEnabled")
               override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,6 +57,21 @@ jobs:
                   CookieManager.getInstance().setAcceptCookie(true)
                   CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
                   web.webChromeClient = WebChromeClient()
+                  web.addJavascriptInterface(object {
+                      @JavascriptInterface
+                      fun reportUrl(url: String) {
+                          runOnUiThread {
+                              if (url.isNotBlank() && url != lastReportedUrl) {
+                                  lastReportedUrl = url
+                                  android.widget.Toast.makeText(
+                                      this@MainActivity,
+                                      "Game request:\\n$url",
+                                      android.widget.Toast.LENGTH_LONG
+                                  ).show()
+                              }
+                          }
+                      }
+                  }, "BleachDebug")
 
                   web.webViewClient = object : WebViewClient() {
                       override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
@@ -70,6 +87,20 @@ jobs:
                           request: android.webkit.WebResourceRequest
                       ): android.webkit.WebResourceResponse? {
                           val url = request.url.toString()
+                          if (url.contains(".swf", ignoreCase = true) ||
+                              url.contains("shockwave", ignoreCase = true) ||
+                              url.contains("flash", ignoreCase = true)) {
+                              runOnUiThread {
+                                  if (url != lastReportedUrl) {
+                                      lastReportedUrl = url
+                                      android.widget.Toast.makeText(
+                                          this@MainActivity,
+                                          "Request:\\n$url",
+                                          android.widget.Toast.LENGTH_LONG
+                                      ).show()
+                                  }
+                              }
+                          }
                           if (url.contains(".swf", ignoreCase = true) &&
                               (url.startsWith("http://") || url.startsWith("https://"))) {
                               runOnUiThread {
@@ -175,6 +206,24 @@ jobs:
                             window.__bleachDirectSwfStarted = false;
                           }
                         }
+
+                        // Diagnostic: report URLs requested by the page, especially SWF/Flash/game files.
+                        try {
+                          if (window.__bleachUrlScannerStarted) return;
+                          window.__bleachUrlScannerStarted = true;
+                          setInterval(function() {
+                            try {
+                              var entries = performance.getEntriesByType("resource") || [];
+                              entries.forEach(function(e) {
+                                var u = e && e.name ? String(e.name) : "";
+                                if (/\\.swf(?:[?#]|$)/i.test(u) ||
+                                    /flash|shockwave|game/i.test(u)) {
+                                  if (window.BleachDebug) window.BleachDebug.reportUrl(u);
+                                }
+                              });
+                            } catch(e) {}
+                          }, 1500);
+                        } catch(e) {}
 
                         var s = document.createElement("script");
                         s.src = "https://unpkg.com/@ruffle-rs/ruffle@latest";
